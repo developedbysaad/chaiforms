@@ -1,0 +1,102 @@
+<!doctype html>
+<!--
+  ChaiForm template — Feedback widget
+  ────────────────────────────────────────────────────────────────────────
+  HOW TO USE THIS FILE
+  1. Get an access key: sign up at https://chaiforms.developedbysaad.com →
+     Dashboard → Endpoint Forms → New. Enter a name + your website, then
+     VERIFY the email we send you (submissions won't deliver until you do).
+  2. Replace YOUR_ACCESS_KEY below with the key from your dashboard.
+  3. (Self-hosting ChaiForm? Change the form's `action` to your own /submit URL.)
+  4. Drop this file on any host — Netlify, GitHub Pages, your own server.
+  5. Feedback lands in your inbox AND your ChaiForm dashboard. Done.
+  ────────────────────────────────────────────────────────────────────────
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Send feedback</title>
+    <style>
+      :root { --bg: #f0fdfa; --card: #ffffff; --ink: #134e4a; --muted: #4b8a84; --accent: #0d9488; --line: #cdeee9; --star: #f5b301; }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 32px 16px;
+        background: var(--bg); color: var(--ink); font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+      .card { width: 100%; max-width: 460px; background: var(--card); border: 1px solid var(--line);
+        border-radius: 18px; padding: 32px; box-shadow: 0 12px 40px -26px rgba(13, 148, 136, 0.6); }
+      h1 { font-size: 1.6rem; margin: 0 0 6px; }
+      p.lede { margin: 0 0 22px; color: var(--muted); }
+      label { display: block; font-weight: 600; margin: 16px 0 6px; font-size: 0.9rem; }
+      input, textarea { width: 100%; padding: 11px 13px; border: 1px solid var(--line); border-radius: 10px;
+        font: inherit; background: #fff; color: var(--ink); }
+      input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+      textarea { min-height: 110px; resize: vertical; }
+      /* Star rating: reverse-ordered radios so CSS sibling hover fills left-to-right */
+      .stars { display: inline-flex; flex-direction: row-reverse; gap: 4px; margin-top: 6px; }
+      .stars input { position: absolute; opacity: 0; }
+      .stars label { font-size: 1.9rem; color: #d9d9d9; cursor: pointer; margin: 0; line-height: 1; transition: color 0.1s; }
+      .stars input:checked ~ label,
+      .stars label:hover, .stars label:hover ~ label { color: var(--star); }
+      button { margin-top: 22px; width: 100%; padding: 12px; border: 0; border-radius: 10px; background: var(--accent);
+        color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+      button:disabled { opacity: 0.6; cursor: progress; }
+      .hp { position: absolute; left: -9999px; opacity: 0; height: 0; }
+      .ok, .err { display: none; margin-top: 18px; padding: 12px 14px; border-radius: 10px; font-size: 0.92rem; }
+      .ok { background: #e9f9f3; color: #0f766e; } .err { background: #fdecec; color: #a12626; }
+      .note { margin-top: 16px; font-size: 0.78rem; color: var(--muted); text-align: center; }
+      a { color: var(--accent); }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <h1>How did we do? 💬</h1>
+      <p class="lede">Your feedback shapes what we build next.</p>
+
+      <form id="chaiform" action="https://chaiforms.developedbysaad.com/submit" method="POST">
+        <input type="hidden" name="access_key" value="YOUR_ACCESS_KEY" />
+        <input type="hidden" name="subject" value="New feedback" />
+        <input class="hp" type="checkbox" name="botcheck" tabindex="-1" autocomplete="off" />
+
+        <label>Rating</label>
+        <div class="stars">
+          <input id="r5" type="radio" name="rating" value="5" required /><label for="r5" title="5">★</label>
+          <input id="r4" type="radio" name="rating" value="4" /><label for="r4" title="4">★</label>
+          <input id="r3" type="radio" name="rating" value="3" /><label for="r3" title="3">★</label>
+          <input id="r2" type="radio" name="rating" value="2" /><label for="r2" title="2">★</label>
+          <input id="r1" type="radio" name="rating" value="1" /><label for="r1" title="1">★</label>
+        </div>
+
+        <label for="message">What's on your mind?</label>
+        <textarea id="message" name="message" required></textarea>
+
+        <label for="email">Email (optional — so we can reply)</label>
+        <input id="email" name="email" type="email" />
+
+        <button type="submit">Send feedback</button>
+        <div class="ok" id="ok">Thank you! We read every one. ☕</div>
+        <div class="err" id="err">Something went wrong. Please try again.</div>
+      </form>
+
+      <p class="note">Powered by <a href="https://chaiforms.developedbysaad.com">ChaiForm</a></p>
+    </main>
+
+    <script>
+      const form = document.getElementById("chaiform");
+      const ok = document.getElementById("ok");
+      const err = document.getElementById("err");
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        ok.style.display = err.style.display = "none";
+        const btn = form.querySelector("button");
+        btn.disabled = true;
+        try {
+          const res = await fetch(form.action, { method: "POST", headers: { Accept: "application/json" }, body: new FormData(form) });
+          const data = await res.json().catch(() => ({}));
+          if (res.ok && data.success !== false) { form.reset(); ok.style.display = "block"; }
+          else { err.textContent = data.message || "Something went wrong. Please try again."; err.style.display = "block"; }
+        } catch (_) { err.style.display = "block"; }
+        finally { btn.disabled = false; }
+      });
+    </script>
+  </body>
+</html>

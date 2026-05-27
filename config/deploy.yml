@@ -1,0 +1,97 @@
+<%
+  begin
+    require "dotenv"
+    Dotenv.load(".env")
+  rescue LoadError
+  end
+
+  def env_or(key, fallback = nil)
+    v = ENV[key]
+    v && !v.empty? ? v : fallback
+  end
+%>
+
+# ChaiForm — single Docker image, single origin, single Kamal service.
+service: <%= env_or('KAMAL_SERVICE', 'chaiforms') %>
+
+image: <%= env_or('KAMAL_IMAGE') || "#{env_or('KAMAL_REGISTRY_USERNAME', 'developedbysaad')}/#{env_or('KAMAL_SERVICE', 'chaiforms')}" %>
+
+servers:
+  web:
+    hosts:
+      - <%= ENV['KAMAL_SERVER_HOST'] %>
+
+proxy:
+  ssl: true
+  app_port: <%= env_or('APP_PORT', 3000) %>
+  host: <%= ENV['KAMAL_DEPLOY_HOST'] %>
+  healthcheck:
+    path: /health
+    interval: 5
+    timeout: 3
+
+registry:
+  server: <%= env_or('KAMAL_REGISTRY_SERVER', 'index.docker.io') %>
+  username: <%= env_or('KAMAL_REGISTRY_USERNAME') %>
+  password:
+    - KAMAL_REGISTRY_PASSWORD
+
+builder:
+  arch: amd64
+  # NEXT_PUBLIC_* must be present at build time (Next inlines them into the client
+  # bundle). They're public values, so they go through build args, not secrets.
+  args:
+    NEXT_PUBLIC_RAZORPAY_DONATE_LINK: <%= ENV['NEXT_PUBLIC_RAZORPAY_DONATE_LINK'] %>
+    NEXT_PUBLIC_GITHUB_URL: <%= ENV['NEXT_PUBLIC_GITHUB_URL'] %>
+    NEXT_PUBLIC_TWITTER_URL: <%= ENV['NEXT_PUBLIC_TWITTER_URL'] %>
+    NEXT_PUBLIC_LINKEDIN_URL: <%= ENV['NEXT_PUBLIC_LINKEDIN_URL'] %>
+    # Hosted instance enables the donation nudges; self-host forks default to off.
+    NEXT_PUBLIC_ENABLE_CHAI_NUDGE: <%= env_or('NEXT_PUBLIC_ENABLE_CHAI_NUDGE', 'true') %>
+  cache:
+    type: registry
+    image: <%= env_or('KAMAL_BUILD_CACHE_IMAGE') || "#{env_or('KAMAL_REGISTRY_USERNAME', 'developedbysaad')}/#{env_or('KAMAL_SERVICE', 'chaiforms')}-buildcache" %>
+
+env:
+  clear:
+    NODE_ENV: production
+    PORT: <%= env_or('APP_PORT', 3000) %>
+    # Web (Next) reverse-proxies API calls to the co-located Express app.
+    API_INTERNAL_URL: http://localhost:8000
+    PUBLIC_APP_URL: <%= "https://#{ENV['KAMAL_DEPLOY_HOST']}" %>
+    BETTER_AUTH_URL: <%= "https://#{ENV['KAMAL_DEPLOY_HOST']}" %>
+    RESEND_FROM: <%= env_or('RESEND_FROM', 'ChaiForm <noreply@developedbysaad.com>') %>
+  # IMPORTANT: only genuine secrets go here. Kamal masks every secret VALUE in
+  # its log output, so listing a *public* value (e.g. NEXT_PUBLIC_*) as a secret
+  # both leaks nothing useful AND risks the masker redacting that same string
+  # where it legitimately appears in clear output. NEXT_PUBLIC_* are public and
+  # build-time only — they live in `builder.args` above, never here.
+  # Optional integration secrets resolve to empty via `${VAR:-}` in
+  # .kamal/secrets, so an unset one never fails the deploy.
+  secret:
+    - DATABASE_URL
+    - BETTER_AUTH_SECRET
+    - UPSTASH_REDIS_REST_URL
+    - UPSTASH_REDIS_REST_TOKEN
+    - RESEND_API_KEY
+    # Google Sheets integration (optional)
+    - GOOGLE_OAUTH_CLIENT_ID
+    - GOOGLE_OAUTH_CLIENT_SECRET
+    # Cloudflare R2 file uploads (optional)
+    - R2_ACCOUNT_ID
+    - R2_ACCESS_KEY_ID
+    - R2_SECRET_ACCESS_KEY
+    - R2_BUCKET
+    - R2_PUBLIC_BASE_URL
+
+accessories:
+  db:
+    image: postgres:17
+    host: <%= ENV['KAMAL_SERVER_HOST'] %>
+    env:
+      clear:
+        POSTGRES_USER: <%= env_or('POSTGRES_USER', 'chaiforms') %>
+        POSTGRES_DB: <%= env_or('POSTGRES_DB', 'chaiforms_production') %>
+      secret:
+        - POSTGRES_PASSWORD
+    directories:
+      - data:/var/lib/postgresql/data

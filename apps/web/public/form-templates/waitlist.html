@@ -1,0 +1,94 @@
+<!doctype html>
+<!--
+  ChaiForm template — Waitlist / early access
+  ────────────────────────────────────────────────────────────────────────
+  HOW TO USE THIS FILE
+  1. Get an access key: sign up at https://chaiforms.developedbysaad.com →
+     Dashboard → Endpoint Forms → New. Enter a name + your website, then
+     VERIFY the email we send you (submissions won't deliver until you do).
+  2. Replace YOUR_ACCESS_KEY below with the key from your dashboard.
+  3. (Self-hosting ChaiForm? Change the form's `action` to your own /submit URL.)
+  4. Drop this file on any host — Netlify, GitHub Pages, your own server.
+  5. Signups land in your inbox AND your ChaiForm dashboard. Done.
+  ────────────────────────────────────────────────────────────────────────
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Join the waitlist</title>
+    <style>
+      :root { --bg: #f5f3ff; --card: #ffffff; --ink: #2e1065; --muted: #6d5ba6; --accent: #7c3aed; --line: #e4ddf7; }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 32px 16px;
+        background: radial-gradient(1200px 600px at 50% -10%, #ede9fe, var(--bg));
+        color: var(--ink); font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+      .card { width: 100%; max-width: 460px; background: var(--card); border: 1px solid var(--line);
+        border-radius: 20px; padding: 34px; box-shadow: 0 20px 60px -30px rgba(124, 58, 237, 0.5); }
+      .pill { display: inline-block; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+        color: var(--accent); background: #f3effe; border: 1px solid var(--line); padding: 4px 10px; border-radius: 999px; }
+      h1 { font-size: 1.8rem; margin: 12px 0 6px; }
+      p.lede { margin: 0 0 22px; color: var(--muted); }
+      label { display: block; font-weight: 600; margin: 14px 0 6px; font-size: 0.9rem; }
+      input, textarea { width: 100%; padding: 11px 13px; border: 1px solid var(--line); border-radius: 11px;
+        font: inherit; background: #fff; color: var(--ink); }
+      input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+      textarea { min-height: 84px; resize: vertical; }
+      button { margin-top: 22px; width: 100%; padding: 13px; border: 0; border-radius: 11px; background: var(--accent);
+        color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+      button:disabled { opacity: 0.6; cursor: progress; }
+      .hp { position: absolute; left: -9999px; opacity: 0; height: 0; }
+      .ok, .err { display: none; margin-top: 18px; padding: 12px 14px; border-radius: 11px; font-size: 0.92rem; }
+      .ok { background: #ecfdf3; color: #1f7a44; } .err { background: #fdecec; color: #a12626; }
+      .note { margin-top: 16px; font-size: 0.78rem; color: var(--muted); text-align: center; }
+      a { color: var(--accent); }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <span class="pill">Early access</span>
+      <h1>Get on the list 🚀</h1>
+      <p class="lede">We're letting people in a few at a time. Tell us a bit about you.</p>
+
+      <form id="chaiform" action="https://chaiforms.developedbysaad.com/submit" method="POST">
+        <input type="hidden" name="access_key" value="YOUR_ACCESS_KEY" />
+        <input type="hidden" name="subject" value="New waitlist signup" />
+        <input class="hp" type="checkbox" name="botcheck" tabindex="-1" autocomplete="off" />
+
+        <label for="name">Name</label>
+        <input id="name" name="from_name" required />
+
+        <label for="email">Work email</label>
+        <input id="email" name="email" type="email" required />
+
+        <label for="use_case">What would you use it for? (optional)</label>
+        <textarea id="use_case" name="use_case"></textarea>
+
+        <button type="submit">Request access</button>
+        <div class="ok" id="ok">You're on the list! We'll be in touch. ☕</div>
+        <div class="err" id="err">Something went wrong. Please try again.</div>
+      </form>
+
+      <p class="note">Powered by <a href="https://chaiforms.developedbysaad.com">ChaiForm</a></p>
+    </main>
+
+    <script>
+      const form = document.getElementById("chaiform");
+      const ok = document.getElementById("ok");
+      const err = document.getElementById("err");
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        ok.style.display = err.style.display = "none";
+        const btn = form.querySelector("button");
+        btn.disabled = true;
+        try {
+          const res = await fetch(form.action, { method: "POST", headers: { Accept: "application/json" }, body: new FormData(form) });
+          const data = await res.json().catch(() => ({}));
+          if (res.ok && data.success !== false) { form.reset(); ok.style.display = "block"; }
+          else { err.textContent = data.message || "Something went wrong. Please try again."; err.style.display = "block"; }
+        } catch (_) { err.style.display = "block"; }
+        finally { btn.disabled = false; }
+      });
+    </script>
+  </body>
+</html>

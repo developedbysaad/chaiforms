@@ -1,0 +1,286 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Kamal action — pick one (defaults to "deploy")'
+        required: true
+        default: 'deploy'
+        type: choice
+        options:
+          - deploy
+          - redeploy
+          - rollback
+          - setup
+          - migrate
+          - seed
+          - logs
+          - logs-errors
+          - proxy-reboot
+          - prune
+      ref:
+        description: 'Branch, tag, or commit SHA to deploy (defaults to main)'
+        required: false
+        default: 'main'
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  kamal:
+    name: "kamal ${{ github.event.inputs.action }} → production"
+    if: contains(fromJSON('["deploy","redeploy","rollback","setup","migrate","seed","proxy-reboot","prune"]'), github.event.inputs.action)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    environment:
+      name: production
+
+    env:
+      KAMAL_REGISTRY_SERVER: ${{ vars.KAMAL_REGISTRY_SERVER || 'index.docker.io' }}
+      KAMAL_REGISTRY_USERNAME: ${{ secrets.KAMAL_REGISTRY_USERNAME }}
+      KAMAL_REGISTRY_PASSWORD: ${{ secrets.KAMAL_REGISTRY_PASSWORD }}
+
+      KAMAL_SERVICE: ${{ vars.KAMAL_SERVICE || 'chaiforms' }}
+      KAMAL_IMAGE: ${{ vars.KAMAL_IMAGE }}
+      KAMAL_DEPLOY_HOST: ${{ secrets.KAMAL_DEPLOY_HOST }}
+      KAMAL_SERVER_HOST: ${{ secrets.KAMAL_SERVER_HOST }}
+
+      APP_PORT: ${{ vars.APP_PORT || '3000' }}
+
+      POSTGRES_USER: ${{ vars.POSTGRES_USER || 'chaiforms' }}
+      POSTGRES_DB: ${{ vars.POSTGRES_DB || 'chaiforms_production' }}
+      POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+
+      # DATABASE_URL is composed inside .kamal/secrets from the Postgres creds
+      # above — never set it here or the app and accessory will drift.
+      BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+
+      UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+      UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      RESEND_FROM: ${{ vars.RESEND_FROM || 'ChaiForm <noreply@developedbysaad.com>' }}
+
+      # Public, build-time only — consumed by config/deploy.yml `builder.args`
+      # (Next inlines them into the client bundle). NOT runtime secrets.
+      NEXT_PUBLIC_RAZORPAY_DONATE_LINK: ${{ secrets.NEXT_PUBLIC_RAZORPAY_DONATE_LINK }}
+      NEXT_PUBLIC_GITHUB_URL: ${{ secrets.NEXT_PUBLIC_GITHUB_URL }}
+      NEXT_PUBLIC_TWITTER_URL: ${{ secrets.NEXT_PUBLIC_TWITTER_URL }}
+      NEXT_PUBLIC_LINKEDIN_URL: ${{ secrets.NEXT_PUBLIC_LINKEDIN_URL }}
+      NEXT_PUBLIC_ENABLE_CHAI_NUDGE: ${{ vars.NEXT_PUBLIC_ENABLE_CHAI_NUDGE || 'true' }}
+
+      # Optional integration secrets — resolved by .kamal/secrets via ${VAR:-}.
+      # Unset = the feature stays "unavailable"; the deploy still succeeds.
+      GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET }}
+      R2_PUBLIC_BASE_URL: ${{ secrets.R2_PUBLIC_BASE_URL }}
+
+    steps:
+      - name: Validate required Environment secrets
+        run: |
+          missing=""
+          [ -z "${{ secrets.SSH_PRIVATE_KEY }}"          ] && missing="$missing SSH_PRIVATE_KEY"
+          [ -z "${{ secrets.KAMAL_SERVER_HOST }}"        ] && missing="$missing KAMAL_SERVER_HOST"
+          [ -z "${{ secrets.KAMAL_DEPLOY_HOST }}"        ] && missing="$missing KAMAL_DEPLOY_HOST"
+          [ -z "${{ secrets.KAMAL_REGISTRY_USERNAME }}"  ] && missing="$missing KAMAL_REGISTRY_USERNAME"
+          [ -z "${{ secrets.KAMAL_REGISTRY_PASSWORD }}"  ] && missing="$missing KAMAL_REGISTRY_PASSWORD"
+          [ -z "${{ secrets.POSTGRES_PASSWORD }}"        ] && missing="$missing POSTGRES_PASSWORD"
+          [ -z "${{ secrets.BETTER_AUTH_SECRET }}"       ] && missing="$missing BETTER_AUTH_SECRET"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing required Environment secrets:$missing"
+            echo "Add them under Settings → Environments → production. See README → Deploy."
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref }}
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+
+      - name: Install Kamal
+        run: gem install kamal -v 2.11.0 --no-document
+
+      - name: Set up Docker Buildx
+        if: contains(fromJSON('["deploy","setup"]'), github.event.inputs.action)
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log into Docker Hub
+        if: contains(fromJSON('["deploy","setup"]'), github.event.inputs.action)
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.KAMAL_REGISTRY_SERVER == 'index.docker.io' && '' || env.KAMAL_REGISTRY_SERVER }}
+          username: ${{ secrets.KAMAL_REGISTRY_USERNAME }}
+          password: ${{ secrets.KAMAL_REGISTRY_PASSWORD }}
+
+      - name: Probe registry credentials
+        if: contains(fromJSON('["deploy","setup"]'), github.event.inputs.action)
+        env:
+          DH_USER: ${{ secrets.KAMAL_REGISTRY_USERNAME }}
+          DH_PASS: ${{ secrets.KAMAL_REGISTRY_PASSWORD }}
+        run: |
+          echo "::group::Credential fingerprint"
+          echo "KAMAL_REGISTRY_USERNAME : length=${#DH_USER}"
+          echo "KAMAL_REGISTRY_PASSWORD : length=${#DH_PASS}"
+          case "$DH_PASS" in
+            dckr_pat_*) echo "PAT format ok — starts with 'dckr_pat_'." ;;
+            *) echo "::warning::PAT does NOT start with 'dckr_pat_'. Docker Hub PATs usually do." ;;
+          esac
+          echo "::endgroup::"
+
+          echo "::group::Probe push"
+          docker pull --quiet alpine:latest
+          PROBE="${DH_USER}/${KAMAL_SERVICE}-pat-probe:ci"
+          docker tag alpine:latest "$PROBE"
+          if docker push "$PROBE" ; then
+            echo "::notice::PAT push succeeded — credentials are good."
+          else
+            echo "::error::PAT push FAILED. KAMAL_REGISTRY_PASSWORD cannot push to ${DH_USER}/${KAMAL_SERVICE}."
+            exit 1
+          fi
+          echo "::endgroup::"
+
+      - name: Configure SSH agent
+        uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Trust the deploy host
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "${{ secrets.KAMAL_SERVER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          echo -e "Host *\n  StrictHostKeyChecking no\n  UserKnownHostsFile /dev/null" >> ~/.ssh/config
+
+      - name: "Run: kamal ${{ github.event.inputs.action }}"
+        env:
+          VERSION: ${{ github.sha }}
+        run: |
+          kamal lock release 2>/dev/null || true
+
+          case "${{ github.event.inputs.action }}" in
+            deploy)        kamal deploy ;;
+            redeploy)      kamal redeploy ;;
+            rollback)      kamal rollback ;;
+            setup)         kamal setup ;;
+            migrate)       kamal app exec --reuse "pnpm --filter @repo/database exec drizzle-kit push --force" ;;
+            seed)          kamal app exec --reuse "pnpm --filter @repo/database db:seed" ;;
+            proxy-reboot)  kamal proxy reboot --confirmed ;;
+            prune)         kamal prune all ;;
+            *)
+              echo "::error::Unknown action '${{ github.event.inputs.action }}'"
+              exit 1
+              ;;
+          esac
+
+      - name: Prune old containers and images
+        if: success() && github.event.inputs.action == 'deploy'
+        run: kamal prune all || true
+        continue-on-error: true
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### kamal ${{ github.event.inputs.action }}"
+            echo ""
+            echo "| Detail | Value |"
+            echo "|--------|-------|"
+            echo "| **Action** | \`${{ github.event.inputs.action }}\` |"
+            echo "| **Ref** | \`${{ github.event.inputs.ref }}\` |"
+            echo "| **Commit** | \`${{ github.sha }}\` |"
+            echo "| **Actor** | @${{ github.actor }} |"
+            echo "| **Status** | \`${{ job.status }}\` |"
+            echo "| **URL** | https://${{ secrets.KAMAL_DEPLOY_HOST }} |"
+            echo "| **API docs** | https://${{ secrets.KAMAL_DEPLOY_HOST }}/api/docs |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  logs:
+    name: "kamal ${{ github.event.inputs.action }} → production"
+    if: contains(fromJSON('["logs","logs-errors"]'), github.event.inputs.action)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment:
+      name: production
+
+    steps:
+      - name: Validate required Environment secrets
+        run: |
+          missing=""
+          [ -z "${{ secrets.SSH_PRIVATE_KEY }}"   ] && missing="$missing SSH_PRIVATE_KEY"
+          [ -z "${{ secrets.KAMAL_SERVER_HOST }}" ] && missing="$missing KAMAL_SERVER_HOST"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing required Environment secrets:$missing"
+            exit 1
+          fi
+
+      - name: Configure SSH agent
+        uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Trust the deploy host
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "${{ secrets.KAMAL_SERVER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          echo -e "Host *\n  StrictHostKeyChecking no\n  UserKnownHostsFile /dev/null" >> ~/.ssh/config
+
+      - name: "Fetch ${{ github.event.inputs.action }}"
+        run: |
+          ssh -o BatchMode=yes -o ConnectTimeout=30 \
+            root@${{ secrets.KAMAL_SERVER_HOST }} \
+            bash -s -- "${{ github.event.inputs.action }}" <<'HEREDOC' || echo "::warning::Failed to connect"
+          ACTION="$1"
+          CONTAINER=$(docker ps -qf "name=chaiforms-web" | head -1)
+          if [ -z "$CONTAINER" ]; then
+            echo "::warning::No running chaiforms-web container found"
+            docker ps --format "table {{.Names}}\t{{.Status}}" || true
+            exit 0
+          fi
+          echo "=== Container ==="
+          docker ps --filter "id=$CONTAINER" --format "Name: {{.Names}} | Status: {{.Status}}"
+          docker inspect "$CONTAINER" --format "Started: {{.State.StartedAt}}" 2>/dev/null || true
+          echo ""
+          if [ "$ACTION" = "logs-errors" ]; then
+            echo "=== Error logs (last 24h) ==="
+            ERRORS=$(docker logs "$CONTAINER" --since 24h --timestamps 2>&1 | \
+              grep -iE "(error|exception|fatal|500|502|503|504|failed|timeout|stack)" || true)
+            if [ -z "$ERRORS" ]; then
+              echo "No errors in the last 24 hours."
+            else
+              echo "$ERRORS"
+              echo ""
+              echo "--- $(echo "$ERRORS" | wc -l | tr -d ' ') error lines found ---"
+            fi
+          else
+            echo "=== Logs (last 500 lines) ==="
+            docker logs "$CONTAINER" --tail 500 --timestamps 2>&1
+          fi
+          HEREDOC
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### kamal ${{ github.event.inputs.action }}"
+            echo ""
+            echo "| Detail | Value |"
+            echo "|--------|-------|"
+            echo "| **Action** | \`${{ github.event.inputs.action }}\` |"
+            echo "| **Actor** | @${{ github.actor }} |"
+            echo "| **Status** | \`${{ job.status }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"

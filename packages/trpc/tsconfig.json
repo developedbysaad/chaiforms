@@ -1,0 +1,9 @@
+{
+  "extends": "@repo/typescript-config/node.json",
+  "compilerOptions": {
+    "noUncheckedIndexedAccess": false,
+    "declaration": false,
+    "declarationMap": false
+  },
+  "include": ["server/", "client/"]
+}

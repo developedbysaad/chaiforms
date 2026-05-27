@@ -1,0 +1,45 @@
+---
+title: ChaiForm
+description: Open source form builder. Fuelled entirely by chai.
+template: splash
+hero:
+  tagline: Open-source form builder — beautiful hosted forms and a form-to-email endpoint backend. Free, self-hostable, fuelled entirely by chai. 🍵
+  actions:
+    - text: Get started locally
+      link: /docs/guides/local-development/
+      icon: right-arrow
+      variant: primary
+    - text: Deploy to production
+      link: /docs/guides/deployment/
+      icon: rocket
+    - text: API reference
+      link: /api/docs
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## Documentation
+
+<CardGrid stagger>
+  <Card title="Local development" icon="laptop">
+    Install, run Postgres, seed demo data, and boot both apps. Plus how to switch
+    on AI generation, Discord/Sheets integrations, and R2 uploads locally.
+    [Read the guide →](/docs/guides/local-development/)
+  </Card>
+  <Card title="Deployment" icon="rocket">
+    Ship the single-container image with Kamal + GitHub Actions, wire secrets the
+    right way, and enable integrations after deploy.
+    [Read the guide →](/docs/guides/deployment/)
+  </Card>
+  <Card title="Environment variables" icon="setting">
+    Every variable — scope, required vs optional, and exactly what it gates.
+    [Browse the reference →](/docs/reference/environment/)
+  </Card>
+  <Card title="Architecture" icon="puzzle">
+    Request lifecycle, auth, the public-form guard chain, admin-gated
+    integrations, presigned uploads, and AI generation.
+    [Read the reference →](/docs/reference/architecture/)
+  </Card>
+</CardGrid>

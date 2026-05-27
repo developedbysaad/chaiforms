@@ -1,0 +1,19 @@
+services:
+  postgresdb:
+    image: postgres:17
+    restart: unless-stopped
+    container_name: chaiforms-postgres
+
+    environment:
+      POSTGRES_USER: chaiforms
+      POSTGRES_PASSWORD: chaiforms_local
+      POSTGRES_DB: chaiforms_dev
+
+    ports:
+      - "5434:5432"
+
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+
+volumes:
+  pg_data:
