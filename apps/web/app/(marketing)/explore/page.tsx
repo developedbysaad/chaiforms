@@ -1,8 +1,8 @@
-import type { RouterOutputs } from "@repo/trpc/client";
 import Link from "next/link";
 
 import { api } from "@/lib/trpc-server";
-import { applyThemeVars } from "@/lib/utils";
+
+import { ExploreCard, type ExploreFormItem } from "./_components/explore-card";
 
 export const dynamic = "force-dynamic";
 
@@ -11,62 +11,109 @@ export default async function ExplorePage({
 }: {
   searchParams: { q?: string };
 }) {
-  let items: RouterOutputs["public"]["listPublicForms"]["items"] = [];
+  const query = searchParams.q?.trim() ?? "";
+  let items: ExploreFormItem[] = [];
   try {
-    const res = await api.public.listPublicForms.query({ limit: 24, search: searchParams.q });
-    items = res.items;
+    const res = await api.public.listPublicForms.query({
+      limit: 24,
+      search: searchParams.q,
+    });
+    items = (res.items ?? []) as ExploreFormItem[];
   } catch {
     // DB not configured — render empty state
   }
 
+  const hasSearch = query.length > 0;
+
   return (
-    <section className="max-w-6xl mx-auto px-6 py-12">
-      <div className="flex items-end justify-between mb-8">
+    <section className="mx-auto max-w-6xl px-6 py-12">
+      <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="display text-4xl font-bold">Explore</h1>
-          <p className="text-chai-700 mt-2">Public forms built by the community. Open-source vibes, public visibility.</p>
+          <h1 className="display text-4xl font-bold text-chai-900">Explore</h1>
+          <p className="mt-2 max-w-xl text-chai-700">
+            Public forms built by the community — each one wears its own theme.
+            Open-source vibes, public visibility.
+          </p>
         </div>
-        <form className="flex gap-2">
-          <input name="q" defaultValue={searchParams.q} placeholder="Search…" className="input w-64" />
-          <button className="btn btn-ghost">Search</button>
+        <form
+          role="search"
+          aria-label="Search public forms"
+          className="flex w-full gap-2 md:w-auto"
+        >
+          <label htmlFor="explore-search" className="sr-only">
+            Search public forms
+          </label>
+          <input
+            id="explore-search"
+            name="q"
+            type="search"
+            defaultValue={searchParams.q}
+            placeholder="Search forms…"
+            className="input md:w-64"
+          />
+          <button type="submit" className="btn btn-ghost shrink-0">
+            Search
+          </button>
         </form>
       </div>
 
-      {items.length === 0 ? (
-        <div className="card text-center py-16 text-chai-700">
-          <div className="text-3xl mb-2">🫖</div>
-          <p>No public forms yet. <Link href="/register" className="underline">Make one</Link>.</p>
-        </div>
+      {items.length > 0 ? (
+        <>
+          <p className="mt-8 text-sm text-chai-700" aria-live="polite">
+            {hasSearch ? (
+              <>
+                Showing <strong className="text-chai-900">{items.length}</strong>{" "}
+                {items.length === 1 ? "result" : "results"} for{" "}
+                <span className="text-chai-900">&ldquo;{query}&rdquo;</span>
+              </>
+            ) : (
+              <>
+                <strong className="text-chai-900">{items.length}</strong> public{" "}
+                {items.length === 1 ? "form" : "forms"}
+              </>
+            )}
+          </p>
+          <ul
+            role="list"
+            aria-label="Public forms"
+            className="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3"
+          >
+            {items.map((form) => (
+              <ExploreCard key={form.id} form={form} />
+            ))}
+          </ul>
+        </>
       ) : (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {items.map((f: (typeof items)[number]) => {
-            const theme = f.theme?.config;
-            return (
-              <Link
-                key={f.id}
-                href={`/f/${f.slug}`}
-                className="rounded-2xl border p-5 transition-transform hover:-translate-y-0.5"
-                style={
-                  theme
-                    ? {
-                        ...applyThemeVars(theme),
-                        background: theme.background,
-                        color: theme.text,
-                        fontFamily: theme.fontFamily,
-                        borderColor: theme.border,
-                      }
-                    : {}
-                }
-              >
-                <div className="text-2xl mb-2">{theme?.logoEmoji ?? "📝"}</div>
-                <div className="font-bold text-lg">{f.title}</div>
-                <div className="text-sm opacity-70 mt-1 line-clamp-2">{f.description}</div>
-                <div className="text-xs mt-4 opacity-70">
-                  {f.responseCount} responses · {f.theme?.name}
-                </div>
-              </Link>
-            );
-          })}
+        <div className="card mt-8 flex flex-col items-center gap-3 py-16 text-center">
+          <div className="text-4xl" aria-hidden="true">
+            🫖
+          </div>
+          {hasSearch ? (
+            <>
+              <p className="text-chai-900">
+                No public forms match{" "}
+                <span className="font-semibold">&ldquo;{query}&rdquo;</span>.
+              </p>
+              <p className="text-sm text-chai-700">
+                Try a different search, or{" "}
+                <Link href="/explore" className="text-chai-500 underline underline-offset-2">
+                  browse all forms
+                </Link>
+                .
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-chai-900">No public forms yet.</p>
+              <p className="text-sm text-chai-700">
+                Be the first —{" "}
+                <Link href="/register" className="text-chai-500 underline underline-offset-2">
+                  build a form
+                </Link>{" "}
+                and publish it for everyone.
+              </p>
+            </>
+          )}
         </div>
       )}
     </section>
