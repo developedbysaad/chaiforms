@@ -9,6 +9,21 @@ import { z } from "zod";
  * importing a service module never throws. In particular, Upstash is optional
  * to preserve the "rate limiting disabled" fallback in `lib/ratelimit.ts`.
  */
+
+/**
+ * Optional URL secret. Kamal injects an UNSET optional secret as an empty string
+ * (`${VAR:-}` → ""), and a pasted value can carry stray whitespace. Plain
+ * `z.string().url().optional()` rejects both (an empty string is a *defined*
+ * non-URL value, so `.optional()` never applies) — which crashed boot in prod.
+ * Treat blank as absent and trim the rest, so an unconfigured optional
+ * integration stays "unavailable" instead of failing validation.
+ */
+const optionalUrl = z.preprocess((v) => {
+  if (typeof v !== "string") return v;
+  const trimmed = v.trim();
+  return trimmed === "" ? undefined : trimmed;
+}, z.string().url().optional());
+
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 
@@ -17,7 +32,7 @@ const envSchema = z.object({
   BETTER_AUTH_SECRET: z.string().min(32, "BETTER_AUTH_SECRET must be 32+ chars"),
 
   // Rate limiting (lib/ratelimit.ts). Optional so dev works without Upstash.
-  UPSTASH_REDIS_REST_URL: z.string().url().optional(),
+  UPSTASH_REDIS_REST_URL: optionalUrl,
   UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
 
   // Email (email/index.ts). Optional so sends are skipped when unconfigured.
@@ -43,7 +58,7 @@ const envSchema = z.object({
   R2_SECRET_ACCESS_KEY: z.string().optional(),
   R2_BUCKET: z.string().optional(),
   // Public bucket base URL used to build read/download links in exports + UI.
-  R2_PUBLIC_BASE_URL: z.string().url().optional(),
+  R2_PUBLIC_BASE_URL: optionalUrl,
 
   // Google OAuth for the Sheets integration (lib/integrations.ts). OPTIONAL —
   // when unset, the Sheets integration is "unavailable" and never breaks boot.
