@@ -128,32 +128,23 @@ jobs:
           username: ${{ secrets.KAMAL_REGISTRY_USERNAME }}
           password: ${{ secrets.KAMAL_REGISTRY_PASSWORD }}
 
-      - name: Probe registry credentials
+      - name: Registry credential fingerprint
         if: contains(fromJSON('["deploy","setup"]'), github.event.inputs.action)
         env:
           DH_USER: ${{ secrets.KAMAL_REGISTRY_USERNAME }}
           DH_PASS: ${{ secrets.KAMAL_REGISTRY_PASSWORD }}
         run: |
-          echo "::group::Credential fingerprint"
+          # Non-fatal sanity check only. We deliberately do NOT push a probe image
+          # to a throwaway repo — that required a SECOND repo and made repo-scoped
+          # tokens fail with "insufficient scopes". The real write test is
+          # `kamal deploy` pushing to ${DH_USER}/${KAMAL_SERVICE} (image + the
+          # :buildcache tag), which is one repo.
           echo "KAMAL_REGISTRY_USERNAME : length=${#DH_USER}"
           echo "KAMAL_REGISTRY_PASSWORD : length=${#DH_PASS}"
           case "$DH_PASS" in
             dckr_pat_*) echo "PAT format ok — starts with 'dckr_pat_'." ;;
-            *) echo "::warning::PAT does NOT start with 'dckr_pat_'. Docker Hub PATs usually do." ;;
+            *) echo "::warning::PAT does not start with 'dckr_pat_' — Docker Hub PATs usually do." ;;
           esac
-          echo "::endgroup::"
-
-          echo "::group::Probe push"
-          docker pull --quiet alpine:latest
-          PROBE="${DH_USER}/${KAMAL_SERVICE}-pat-probe:ci"
-          docker tag alpine:latest "$PROBE"
-          if docker push "$PROBE" ; then
-            echo "::notice::PAT push succeeded — credentials are good."
-          else
-            echo "::error::PAT push FAILED. KAMAL_REGISTRY_PASSWORD cannot push to ${DH_USER}/${KAMAL_SERVICE}."
-            exit 1
-          fi
-          echo "::endgroup::"
 
       - name: Configure SSH agent
         uses: webfactory/ssh-agent@v0.9.1

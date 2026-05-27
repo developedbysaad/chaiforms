@@ -49,7 +49,12 @@ builder:
     NEXT_PUBLIC_ENABLE_CHAI_NUDGE: <%= env_or('NEXT_PUBLIC_ENABLE_CHAI_NUDGE', 'true') %>
   cache:
     type: registry
-    image: <%= env_or('KAMAL_BUILD_CACHE_IMAGE') || "#{env_or('KAMAL_REGISTRY_USERNAME', 'developedbysaad')}/#{env_or('KAMAL_SERVICE', 'chaiforms')}-buildcache" %>
+    # Cache is a TAG on the SAME image repo (…/chaiforms:buildcache), not a
+    # separate …/chaiforms-buildcache repo. That way the whole deploy only ever
+    # pushes to ONE Docker Hub repo, so a registry token scoped to just that repo
+    # works — avoids the recurring "access token has insufficient scopes" failures.
+    image: <%= env_or('KAMAL_BUILD_CACHE_IMAGE') || "#{env_or('KAMAL_REGISTRY_USERNAME', 'developedbysaad')}/#{env_or('KAMAL_SERVICE', 'chaiforms')}:buildcache" %>
+    options: mode=max
 
 env:
   clear:
