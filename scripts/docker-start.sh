@@ -1,11 +1,21 @@
 #!/bin/sh
-# Single-container entrypoint: push schema, then run the API (:8000) and the
-# Next web app (:3000) together. The web app reverse-proxies /trpc, /api/auth,
-# /submit, /docs, etc. to the API on localhost:8000 (single origin).
+# Single-container entrypoint: run the API (:8000) and the Next web app (:3000)
+# together. The web app reverse-proxies /trpc, /api/auth, /submit, /docs, etc.
+# to the API on localhost:8000 (single origin).
 set -e
 
-echo "☕ ChaiForm — applying database schema (drizzle push)…"
-pnpm --filter @repo/database exec drizzle-kit push --force || echo "⚠️  schema push failed; continuing (DB may already be current)"
+# Schema push runs in the BACKGROUND so it never blocks API boot. On a cold
+# first deploy Postgres is still running initdb, and a synchronous push here
+# would stall the API past the 30s proxy healthcheck. /health doesn't touch the
+# DB, so the container can become healthy immediately while the schema is
+# applied alongside. For a guaranteed, observable migration, use the `migrate`
+# deploy action instead of relying on this.
+echo "☕ ChaiForm — applying database schema (drizzle push) in background…"
+(
+  pnpm --filter @repo/database exec drizzle-kit push --force \
+    && echo "✅ schema push complete" \
+    || echo "⚠️  schema push failed — run the 'migrate' action (DB may already be current)"
+) &
 
 echo "🚀 starting API on :8000…"
 PORT=8000 pnpm --filter @repo/api start &
