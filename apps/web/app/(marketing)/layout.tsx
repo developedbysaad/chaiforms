@@ -26,10 +26,21 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
       <main className="flex-1">{children}</main>
       <footer className="border-t border-chai-200 bg-surface">
         <div className="max-w-6xl mx-auto px-6 py-8 flex items-center justify-between text-sm text-chai-700">
-          <div>Made with 🍵 by Saad</div>
+          <div>
+            Made with 🍵 by{" "}
+            <a
+              href="https://x.com/developedbysaad"
+              target="_blank"
+              rel="noreferrer"
+              className="font-medium text-chai-900 hover:text-chai-500"
+            >
+              Saad
+            </a>
+          </div>
           <div className="flex gap-4">
             <Link href="/open-source">Open source</Link>
             <a href={process.env.NEXT_PUBLIC_GITHUB_URL ?? "#"} target="_blank" rel="noreferrer">GitHub</a>
+            <a href="https://x.com/developedbysaad" target="_blank" rel="noreferrer">X</a>
           </div>
         </div>
       </footer>
