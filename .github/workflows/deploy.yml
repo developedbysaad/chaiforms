@@ -124,26 +124,40 @@ jobs:
         if: contains(fromJSON('["deploy","setup"]'), github.event.inputs.action)
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.KAMAL_REGISTRY_SERVER == 'index.docker.io' && '' || env.KAMAL_REGISTRY_SERVER }}
           username: ${{ secrets.KAMAL_REGISTRY_USERNAME }}
           password: ${{ secrets.KAMAL_REGISTRY_PASSWORD }}
 
-      - name: Registry credential fingerprint
+      - name: Probe registry credentials
         if: contains(fromJSON('["deploy","setup"]'), github.event.inputs.action)
         env:
           DH_USER: ${{ secrets.KAMAL_REGISTRY_USERNAME }}
           DH_PASS: ${{ secrets.KAMAL_REGISTRY_PASSWORD }}
         run: |
-          # Diagnostic only — never prints the secret VALUES, just their length and
-          # a sha256 PREFIX. Compare these prefixes against the working pulse-board
-          # deploy log: if they differ, this repo's Environment secrets hold a
-          # different (e.g. read-only) token/username than the one that works.
+          # Same write test pulse-board uses. Fails in seconds with a clear message
+          # if the token can't write to the namespace — instead of after a 158s
+          # build. Never prints secret VALUES, only length + a sha256 prefix so the
+          # fingerprint can be compared across repos.
+          echo "::group::Credential fingerprint"
           echo "KAMAL_REGISTRY_USERNAME : length=${#DH_USER}  sha256-prefix=$(printf '%s' "$DH_USER" | sha256sum | head -c 16)"
           echo "KAMAL_REGISTRY_PASSWORD : length=${#DH_PASS}  sha256-prefix=$(printf '%s' "$DH_PASS" | sha256sum | head -c 16)"
           case "$DH_PASS" in
             dckr_pat_*) echo "PAT format ok — starts with 'dckr_pat_'." ;;
-            *) echo "::warning::PAT does not start with 'dckr_pat_' — Docker Hub PATs usually do." ;;
+            *) echo "::warning::PAT does NOT start with 'dckr_pat_'." ;;
           esac
+          echo "::endgroup::"
+
+          echo "::group::Probe push"
+          docker pull --quiet alpine:latest
+          PROBE="${DH_USER}/${KAMAL_SERVICE}-pat-probe:ci"
+          docker tag alpine:latest "$PROBE"
+          if docker push "$PROBE" ; then
+            echo "::endgroup::"
+            echo "::notice::PAT push to $PROBE succeeded — the token CAN write to the ${DH_USER} namespace, so the real deploy push should also work."
+          else
+            echo "::endgroup::"
+            echo "::error::PAT push to $PROBE FAILED. The KAMAL_REGISTRY_PASSWORD in the production Environment cannot write to the '${DH_USER}' namespace — it is read-only, or belongs to a different account/org than '${DH_USER}'. Regenerate a Read & Write token under the SAME account as KAMAL_REGISTRY_USERNAME and re-set the secret."
+            exit 1
+          fi
 
       - name: Configure SSH agent
         uses: webfactory/ssh-agent@v0.9.1
