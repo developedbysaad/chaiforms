@@ -74,40 +74,55 @@ export default function PricingPage() {
       </div>
 
       <div className="grid md:grid-cols-3 gap-6 mt-14">
-        {TIERS.map((tier) => (
-          <div
-            key={tier.name}
-            className={`card flex flex-col ${
-              tier.highlight ? "ring-2 ring-chai-500 shadow-md" : ""
-            }`}
-          >
-            <div className="text-3xl">{tier.emoji}</div>
-            <div className="font-bold text-lg mt-3">{tier.name}</div>
-            <div className="mt-2 flex items-baseline gap-2">
-              <span className="display text-4xl font-bold text-chai-900">{tier.price}</span>
-              <span className="text-sm text-chai-700">/ {tier.cadence}</span>
-            </div>
-            <p className="text-sm text-chai-700 mt-3">{tier.blurb}</p>
-
-            <ul className="mt-6 space-y-2 text-sm flex-1">
-              {tier.perks.map((perk) => (
-                <li key={perk} className="flex gap-2">
-                  <span className="text-chai-500 font-bold">✓</span>
-                  <span className="text-chai-900">{perk}</span>
-                </li>
-              ))}
-            </ul>
-
-            <Link
-              href={tier.cta.href}
-              className={`btn mt-6 w-full justify-center ${
-                tier.highlight ? "btn-primary" : ""
+        {TIERS.map((tier) => {
+          // The "Buy me a chai" CTA goes straight to the Razorpay link when one
+          // is configured (public, build-time env var); otherwise it falls back
+          // to /open-source, which has the donate card.
+          const donateUrl = process.env.NEXT_PUBLIC_RAZORPAY_DONATE_LINK;
+          const useDonate =
+            tier.name === "Buy me a chai" && !!donateUrl && !donateUrl.includes("your-link");
+          const href = useDonate ? donateUrl! : tier.cta.href;
+          // Every tier's CTA is a real button: primary for the highlighted tier,
+          // outlined (ghost) for the rest.
+          const ctaClass = `btn mt-6 w-full justify-center ${
+            tier.highlight ? "btn-primary" : "btn-ghost"
+          }`;
+          return (
+            <div
+              key={tier.name}
+              className={`card flex flex-col ${
+                tier.highlight ? "ring-2 ring-chai-500 shadow-md" : ""
               }`}
             >
-              {tier.cta.label}
-            </Link>
-          </div>
-        ))}
+              <div className="text-3xl">{tier.emoji}</div>
+              <div className="font-bold text-lg mt-3">{tier.name}</div>
+              <div className="mt-2 flex items-baseline gap-2">
+                <span className="display text-4xl font-bold text-chai-900">{tier.price}</span>
+                <span className="text-sm text-chai-700">/ {tier.cadence}</span>
+              </div>
+              <p className="text-sm text-chai-700 mt-3">{tier.blurb}</p>
+
+              <ul className="mt-6 space-y-2 text-sm flex-1">
+                {tier.perks.map((perk) => (
+                  <li key={perk} className="flex gap-2">
+                    <span className="text-chai-500 font-bold">✓</span>
+                    <span className="text-chai-900">{perk}</span>
+                  </li>
+                ))}
+              </ul>
+
+              {useDonate ? (
+                <a href={href} target="_blank" rel="noreferrer" className={ctaClass}>
+                  {tier.cta.label}
+                </a>
+              ) : (
+                <Link href={href} className={ctaClass}>
+                  {tier.cta.label}
+                </Link>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       <div className="mt-16 text-center">
