@@ -200,7 +200,13 @@ export default function BuilderPage() {
       </div>
 
       {previewOpen ? (
-        <div className="card">
+        // Render the preview on the theme's own page background — exactly like the
+        // public /f/<slug> page — so what you see here matches what visitors see
+        // (no "themed form on a different-coloured page" mismatch).
+        <div
+          className="rounded-2xl border border-chai-200 overflow-hidden py-10 px-4"
+          style={{ background: form.theme.config.background }}
+        >
           <FormRenderer
             title={form.title}
             description={form.description ?? undefined}

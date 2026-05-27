@@ -211,6 +211,27 @@ h1, h2, h3, .display {
   outline-offset: 1px;
 }
 
+/* ── Form micro-animations (reduced-motion safe) ────────────────────────── */
+@keyframes chai-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+[data-chai-form] { animation: chai-rise 0.45s cubic-bezier(0.21, 1, 0.36, 1) both; }
+[data-chai-form] button[type="submit"],
+[data-chai-form] button[type="button"],
+[data-chai-form] .chai-option {
+  transition: transform 0.08s ease, filter 0.12s ease, border-color 0.12s ease,
+    box-shadow 0.12s ease, background-color 0.12s ease;
+}
+[data-chai-form] button:active:not(:disabled) { transform: translateY(1px) scale(0.99); }
+[data-chai-form] .chai-option:active { transform: scale(0.995); }
+@media (prefers-reduced-motion: reduce) {
+  [data-chai-form] { animation: none; }
+  [data-chai-form] *,
+  [data-chai-form] *::before,
+  [data-chai-form] *::after { transition: none !important; animation: none !important; }
+}
+
 /* ── App chrome design system ───────────────────────────────────────────
    Shared button / input / card primitives. Consistent 10px radius,
    visible focus rings, subtle elevation. These are independent of the
