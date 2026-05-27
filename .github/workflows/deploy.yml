@@ -134,13 +134,12 @@ jobs:
           DH_USER: ${{ secrets.KAMAL_REGISTRY_USERNAME }}
           DH_PASS: ${{ secrets.KAMAL_REGISTRY_PASSWORD }}
         run: |
-          # Non-fatal sanity check only. We deliberately do NOT push a probe image
-          # to a throwaway repo — that required a SECOND repo and made repo-scoped
-          # tokens fail with "insufficient scopes". The real write test is
-          # `kamal deploy` pushing to ${DH_USER}/${KAMAL_SERVICE} (image + the
-          # :buildcache tag), which is one repo.
-          echo "KAMAL_REGISTRY_USERNAME : length=${#DH_USER}"
-          echo "KAMAL_REGISTRY_PASSWORD : length=${#DH_PASS}"
+          # Diagnostic only — never prints the secret VALUES, just their length and
+          # a sha256 PREFIX. Compare these prefixes against the working pulse-board
+          # deploy log: if they differ, this repo's Environment secrets hold a
+          # different (e.g. read-only) token/username than the one that works.
+          echo "KAMAL_REGISTRY_USERNAME : length=${#DH_USER}  sha256-prefix=$(printf '%s' "$DH_USER" | sha256sum | head -c 16)"
+          echo "KAMAL_REGISTRY_PASSWORD : length=${#DH_PASS}  sha256-prefix=$(printf '%s' "$DH_PASS" | sha256sum | head -c 16)"
           case "$DH_PASS" in
             dckr_pat_*) echo "PAT format ok — starts with 'dckr_pat_'." ;;
             *) echo "::warning::PAT does not start with 'dckr_pat_' — Docker Hub PATs usually do." ;;
