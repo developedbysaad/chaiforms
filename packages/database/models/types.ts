@@ -170,7 +170,7 @@ export interface AnalyticsMetadata {
 // ---- Endpoint forms -------------------------------------------------------
 
 export type FormType = "hosted" | "endpoint";
-export type CaptchaProvider = "none" | "hcaptcha" | "recaptcha";
+export type CaptchaProvider = "none" | "hcaptcha" | "recaptcha" | "turnstile";
 
 export interface EncryptedSecret {
   ciphertext: string;

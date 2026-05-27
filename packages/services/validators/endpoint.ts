@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const captchaProviderSchema = z.enum(["none", "hcaptcha", "recaptcha"]);
+export const captchaProviderSchema = z.enum(["none", "hcaptcha", "recaptcha", "turnstile"]);
 
 export const createEndpointFormSchema = z.object({
   title: z.string().trim().min(1, "Form name is required").max(120),

@@ -218,9 +218,14 @@ function renderPayloadHtml(payload: Record<string, unknown>): string {
   const rows = Object.entries(payload)
     .filter(
       ([k]) =>
-        !["access_key", "botcheck", "h-captcha-response", "g-recaptcha-response", "redirect"].includes(
-          k,
-        ),
+        ![
+          "access_key",
+          "botcheck",
+          "h-captcha-response",
+          "g-recaptcha-response",
+          "cf-turnstile-response",
+          "redirect",
+        ].includes(k),
     )
     .map(([k, v]) => {
       const val =
@@ -297,10 +302,13 @@ async function submitHandler(req: Request, res: ExpressResponse) {
 
   // Captcha
   if (settings?.captchaProvider && settings.captchaProvider !== "none") {
-    const token =
+    const tokenField =
       settings.captchaProvider === "hcaptcha"
-        ? (payload["h-captcha-response"] as string | undefined)
-        : (payload["g-recaptcha-response"] as string | undefined);
+        ? "h-captcha-response"
+        : settings.captchaProvider === "turnstile"
+          ? "cf-turnstile-response"
+          : "g-recaptcha-response";
+    const token = payload[tokenField] as string | undefined;
     const secret = settings.captchaSecret ? decryptSecret(settings.captchaSecret) : null;
     const ok = await verifyCaptcha({
       provider: settings.captchaProvider,
@@ -317,6 +325,7 @@ async function submitHandler(req: Request, res: ExpressResponse) {
   delete persisted.botcheck;
   delete persisted["h-captcha-response"];
   delete persisted["g-recaptcha-response"];
+  delete persisted["cf-turnstile-response"];
   delete persisted.redirect;
 
   const submitterEmail =

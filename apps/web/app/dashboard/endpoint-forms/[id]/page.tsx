@@ -282,7 +282,7 @@ function SettingsTab({
     allowedOrigins: string[] | null;
     endpointSettings: {
       honeypotEnabled: boolean;
-      captchaProvider: "none" | "hcaptcha" | "recaptcha";
+      captchaProvider: "none" | "hcaptcha" | "recaptcha" | "turnstile";
       captchaSiteKey: string | null;
       subjectTemplate: string;
       webhookUrl: string | null;
@@ -350,6 +350,7 @@ function SettingsTab({
             <option value="none">None</option>
             <option value="hcaptcha">hCaptcha</option>
             <option value="recaptcha">reCAPTCHA</option>
+            <option value="turnstile">Cloudflare Turnstile</option>
           </select>
         </div>
         <div>
@@ -372,6 +373,13 @@ function SettingsTab({
             onChange={(e) => setCaptchaSecret(e.target.value)}
           />
         </div>
+      )}
+      {provider === "turnstile" && (
+        <p className="help">
+          Add the widget to your form so it sends a <code>cf-turnstile-response</code> token:{" "}
+          <code>{`<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>`}</code>{" "}
+          plus <code>{`<div class="cf-turnstile" data-sitekey="YOUR_SITE_KEY"></div>`}</code> inside the form.
+        </p>
       )}
       <div>
         <label className="label text-sm">Webhook URL (optional)</label>

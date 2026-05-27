@@ -3,7 +3,9 @@ import type { CaptchaProvider } from "@repo/database/schema";
 import { env } from "../env";
 
 /**
- * Verify an h-captcha-response or g-recaptcha-response token server-side.
+ * Verify an hCaptcha / reCAPTCHA / Cloudflare Turnstile token server-side.
+ * All three use the same form-encoded { secret, response, remoteip? } → { success }
+ * siteverify contract, so only the endpoint URL differs.
  * Returns `true` if the captcha is satisfied OR the form has no captcha enabled.
  */
 export async function verifyCaptcha(opts: {
@@ -16,7 +18,11 @@ export async function verifyCaptcha(opts: {
   if (!opts.secret || !opts.token) return false;
 
   const url =
-    opts.provider === "hcaptcha" ? env.HCAPTCHA_VERIFY_URL : env.RECAPTCHA_VERIFY_URL;
+    opts.provider === "hcaptcha"
+      ? env.HCAPTCHA_VERIFY_URL
+      : opts.provider === "turnstile"
+        ? env.TURNSTILE_VERIFY_URL
+        : env.RECAPTCHA_VERIFY_URL;
 
   const body = new URLSearchParams({
     secret: opts.secret,

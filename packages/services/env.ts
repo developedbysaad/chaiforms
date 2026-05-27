@@ -30,6 +30,10 @@ const envSchema = z.object({
     .string()
     .url()
     .default("https://www.google.com/recaptcha/api/siteverify"),
+  TURNSTILE_VERIFY_URL: z
+    .string()
+    .url()
+    .default("https://challenges.cloudflare.com/turnstile/v0/siteverify"),
 
   // Cloudflare R2 (S3-compatible) for the file_upload field type (lib/storage.ts).
   // ALL optional — absence simply disables file uploads; core forms are
