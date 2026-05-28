@@ -18,11 +18,17 @@ import { z } from "zod";
  * Treat blank as absent and trim the rest, so an unconfigured optional
  * integration stays "unavailable" instead of failing validation.
  */
-const optionalUrl = z.preprocess((v) => {
-  if (typeof v !== "string") return v;
-  const trimmed = v.trim();
-  return trimmed === "" ? undefined : trimmed;
-}, z.string().url().optional());
+const optionalUrl = z
+  .preprocess((v) => {
+    if (typeof v !== "string") return v;
+    const trimmed = v.trim();
+    return trimmed === "" ? undefined : trimmed;
+  }, z.string().url().optional())
+  // Belt-and-suspenders: an OPTIONAL integration must never crash boot. If the
+  // value is somehow non-blank yet invalid (a misconfigured secret, an
+  // unexpanded `${VAR:-}` literal, etc.), treat the feature as absent rather
+  // than throwing — core forms keep working.
+  .catch(undefined);
 
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
