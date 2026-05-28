@@ -182,8 +182,16 @@ jobs:
             redeploy)      kamal redeploy ;;
             rollback)      kamal rollback ;;
             setup)         kamal setup ;;
-            migrate)       kamal app exec --reuse "pnpm --filter @repo/database exec drizzle-kit push --force" ;;
-            seed)          kamal app exec --reuse "pnpm --filter @repo/database db:seed" ;;
+            # NOTE: no --reuse. `--reuse` runs `docker exec` inside the
+            # long-running web container, whose env (incl. DATABASE_URL, composed
+            # from POSTGRES_PASSWORD) is frozen at its last deploy. After a
+            # password rotation that container holds the OLD password and these
+            # one-offs fail auth even once the DB role is corrected. Without
+            # --reuse, Kamal boots a fresh container that composes DATABASE_URL
+            # from the CURRENT secret — the same source db-reset-password uses —
+            # so the two always agree.
+            migrate)       kamal app exec "pnpm --filter @repo/database exec drizzle-kit push --force" ;;
+            seed)          kamal app exec "pnpm --filter @repo/database db:seed" ;;
             db-reset-password)
               # Postgres applies POSTGRES_PASSWORD only on the FIRST init of an
               # empty data dir. Once the accessory's `data` volume exists,
@@ -194,8 +202,11 @@ jobs:
               # It connects over the container's local unix socket (trusted in
               # the official postgres image), so it needs no prior password.
               # Idempotent — safe to re-run, and the right thing to run after any
-              # POSTGRES_PASSWORD rotation, before `seed`/`migrate`.
-              kamal accessory exec db --reuse "psql -v ON_ERROR_STOP=1 -U $POSTGRES_USER -d $POSTGRES_DB -c \"ALTER ROLE $POSTGRES_USER WITH PASSWORD '$POSTGRES_PASSWORD'\"" ;;
+              # POSTGRES_PASSWORD rotation, before `seed`/`migrate`. The password
+              # is bound as a psql variable and emitted with :'pw', so psql does
+              # the SQL-literal quoting — the stored value is exactly the secret,
+              # never mangled by a stray quote in the ALTER statement.
+              kamal accessory exec db --reuse "psql -v ON_ERROR_STOP=1 -v pw=\"$POSTGRES_PASSWORD\" -U $POSTGRES_USER -d $POSTGRES_DB -c \"ALTER ROLE $POSTGRES_USER WITH PASSWORD :'pw'\"" ;;
             proxy-reboot)  kamal proxy reboot --confirmed ;;
             prune)         kamal prune all ;;
             *)
