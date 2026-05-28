@@ -98,7 +98,7 @@ docker-compose.yml        Local Postgres
 
 ## Deploy
 
-Deploys run from **Actions → Deploy → Run workflow** (manual `workflow_dispatch`), picking a Kamal action: `setup` (first provision), `deploy`, `redeploy`, `rollback`, `migrate`, `seed`, `logs`, `logs-errors`, `proxy-reboot`, `prune`.
+Deploys run from **Actions → Deploy → Run workflow** (manual `workflow_dispatch`), picking a Kamal action: `setup` (first provision), `deploy`, `redeploy`, `rollback`, `migrate`, `seed`, `db-reset-password`, `logs`, `logs-errors`, `proxy-reboot`, `prune`.
 
 First-time setup:
 
@@ -109,6 +109,14 @@ First-time setup:
 
 After that, `deploy` ships new code and `seed` re-loads demo data (idempotent — it
 wipes and re-seeds the demo account only).
+
+> **Rotated `POSTGRES_PASSWORD`?** Postgres only applies that password when it
+> first initializes an *empty* data dir. The accessory's `data` volume persists
+> across deploys, so changing the secret afterward leaves the existing role on
+> the **old** password while the app connects with the **new** one — every query
+> fails with `FATAL: password authentication failed` (`28P01`). Run the
+> **`db-reset-password`** action once to reconcile the live role to the current
+> secret (in place, no data loss), then re-run `migrate` / `seed`.
 
 **Required GitHub Environment secrets** (Settings → Environments → `production`):
 

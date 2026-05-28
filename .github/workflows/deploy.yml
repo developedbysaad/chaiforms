@@ -15,6 +15,7 @@ on:
           - setup
           - migrate
           - seed
+          - db-reset-password
           - logs
           - logs-errors
           - proxy-reboot
@@ -35,7 +36,7 @@ concurrency:
 jobs:
   kamal:
     name: "kamal ${{ github.event.inputs.action }} → production"
-    if: contains(fromJSON('["deploy","redeploy","rollback","setup","migrate","seed","proxy-reboot","prune"]'), github.event.inputs.action)
+    if: contains(fromJSON('["deploy","redeploy","rollback","setup","migrate","seed","db-reset-password","proxy-reboot","prune"]'), github.event.inputs.action)
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -183,6 +184,18 @@ jobs:
             setup)         kamal setup ;;
             migrate)       kamal app exec --reuse "pnpm --filter @repo/database exec drizzle-kit push --force" ;;
             seed)          kamal app exec --reuse "pnpm --filter @repo/database db:seed" ;;
+            db-reset-password)
+              # Postgres applies POSTGRES_PASSWORD only on the FIRST init of an
+              # empty data dir. Once the accessory's `data` volume exists,
+              # rotating the secret never updates the existing role — the app
+              # then authenticates with the new password against a DB that still
+              # holds the old one (FATAL 28P01). This reconciles the role's
+              # password to the CURRENT secret, in place, with no data loss.
+              # It connects over the container's local unix socket (trusted in
+              # the official postgres image), so it needs no prior password.
+              # Idempotent — safe to re-run, and the right thing to run after any
+              # POSTGRES_PASSWORD rotation, before `seed`/`migrate`.
+              kamal accessory exec db --reuse "psql -v ON_ERROR_STOP=1 -U $POSTGRES_USER -d $POSTGRES_DB -c \"ALTER ROLE $POSTGRES_USER WITH PASSWORD '$POSTGRES_PASSWORD'\"" ;;
             proxy-reboot)  kamal proxy reboot --confirmed ;;
             prune)         kamal prune all ;;
             *)
